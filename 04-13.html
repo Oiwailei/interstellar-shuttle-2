@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>星际穿梭</title>
+  <style>
+    * {
+      padding: 0;
+      margin: 0;
+      box-sizing: border-box;
+    }
+    body {
+      height: 100%;
+      overflow: hidden;
+      background-color: rgb(11, 11, 11);;
+      font-family: 'Arial', sans-serif;
+    }
+    #start-tip {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-size: 24px;
+      background: rgba(16, 16, 16, 0.7);
+      padding: 20px 40px;
+      border-radius: 12px;
+      text-align: center;
+      cursor: pointer;
+      z-index: 999;
+      transition: opacity 1s ease;
+    }
+    #start-tip.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="start-tip"> 点击任意处开始穿梭...</div>
+  <canvas id="space"></canvas>//绘制星空动画的画布
+  <audio id="bgm" loop>/循环播放背景音乐
+    <source src="./background.mp3" type="audio/mpeg" />
+    您的浏览器不支持音频播放。
+  </audio>
+  
+  <script>
+    const canvas = document.getElementById("space");
+    const c = canvas.getContext("2d");
+    const raf = window.requestAnimationFrame;
+    const bgm = document.getElementById("bgm");
+    bgm.volume = 0.5;
+
+    const cfg = {
+      numStars: 10000,
+      focalLength: 0,
+      mouseinfluence: 0.4,
+      speed: 1,
+      maxStarsize: 5,
+      fadeStartsize: 200,
+      fadeEnds: 100
+    };
+
+    let stars = [], cx, cy, mx = 0, my = 0;
+// 星星的初始化，透视投影模拟效果
+    function init() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      cx = canvas.width / 2;
+      cy = canvas.height / 2;
+      cfg.focalLength = canvas.width * 2;
+
+      stars = Array.from({ length: cfg.numStars }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        z: Math.random() * canvas.width,
+        o: '0.' + Math.floor(Math.random() * 99) + 1,
+        px: 0,
+        py: 0,
+        pz: 0
+      }));
+    }
+
+    function pos(x, y, z) {
+      const scale = cfg.focalLength / z;
+      return {
+        x: (x - cx) * scale + cx,
+        y: (y - cy) * scale + cy,
+        size: Math.min(cfg.maxStarsize, scale)
+      };
+    }
+
+    function alpha(z) {
+      if (z < cfg.fadeStartsize) {
+        return Math.max(0, Math.min(1, (z - cfg.fadeEnds) / (cfg.fadeStartsize - cfg.fadeEnds)));
+      }
+      return 1;
+    }
+
+    function move() {
+      stars.forEach(star => {
+        [star.px, star.py, star.pz] = [star.x, star.y, star.z];
+        star.z -= cfg.speed;
+        star.x += mx * cfg.mouseinfluence / star.z;
+        star.y += my * cfg.mouseinfluence / star.z;
+        if (star.z <= cfg.fadeEnds) {
+          star.z = canvas.width;
+          star.x = Math.random() * canvas.width;
+          star.y = Math.random() * canvas.height;
+          [star.px, star.py, star.pz] = [star.x, star.y, star.z];
+        }
+      });
+    }
+
+    function draw() {
+      if (
+        canvas.width !== window.innerWidth || canvas.height !== window.innerHeight
+      ) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        init();
+      }
+      c.fillStyle = "rgb(5,10,20)";
+      c.fillRect(0, 0, canvas.width, canvas.height);
+
+      stars.forEach(star => {
+        const curr = pos(star.x, star.y, star.z);
+        const a = alpha(star.z);
+
+        if (cfg.speed > 10) {
+          const prev = pos(star.px, star.py, star.pz);
+          c.beginPath();
+          c.moveTo(prev.x, prev.y);
+          c.lineTo(curr.x, curr.y);
+          c.strokeStyle = `rgba(255,255,255,${0.3 * a})`;
+          c.lineWidth = curr.size;
+          c.stroke();
+        }
+
+        c.beginPath();
+        c.arc(curr.x, curr.y, curr.size, 0, Math.PI * 2);
+        c.fillStyle = `rgba(255,255,255,${parseFloat(star.o) * a})`;
+        c.fill();
+      });
+    }
+
+    function loop() {
+      raf(loop);
+      move();
+      draw();
+    }
+
+    document.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp") {
+        cfg.speed = Math.min(maxSpeed, cfg.speed + 0.5);
+        } else if (e.key === "ArrowDown") {
+        cfg.speed = Math.max(0.1, cfg.speed - 0.5);
+    }
+    });
+
+
+    document.addEventListener("mousemove", e => {
+      mx = e.clientX - cx;
+      my = e.clientY - cy;
+    });
+    const maxSpeed = 8;
+    document.addEventListener("wheel", e => {
+      cfg.speed = Math.max(0.1, Math.min(50, cfg.speed - e.deltaY * 0.002));
+    });
+
+    // 启动提示和音频播放控制
+    window.addEventListener('DOMContentLoaded', () => {
+      const startTip = document.getElementById('start-tip');
+
+      const start = () => {
+        bgm.play().catch(err => {
+          console.log('音频播放失败:', err);
+        });
+
+        startTip.classList.add('hidden');
+        setTimeout(() => startTip.remove(), 1000);
+
+        document.removeEventListener('click', start);
+        document.removeEventListener('keydown', start);
+      };
+
+      document.addEventListener('click', start);
+      document.addEventListener('keydown', start);
+    });
+
+    init();
+    loop();
+  </script>
+</body>
+</html>
